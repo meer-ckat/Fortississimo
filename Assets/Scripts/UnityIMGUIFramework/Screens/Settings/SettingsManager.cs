@@ -26,28 +26,27 @@ public sealed class SettingsManager : MonoBehaviour
     public bool HasUnsavedChanges => !editingSettings.Matches(appliedSettings);
     public SettingsData AppliedSettings => appliedSettings;
 
+    // Editor: populate a freshly added component. Runtime: repair serialized data
+    // that is still zeroed. Same value list, one place.
     private void Reset()
     {
-        windowConfig = AnimatedWindowConfig.Default;
-        confirmWindowConfig = AnimatedWindowConfig.ConfirmDefault;
-        listingConfig = AnimatedListingConfig.Default;
-        layoutConfig = WindowLayoutConfig.SettingsDefault;
-        dialogLayoutConfig = DialogLayoutConfig.Default;
-        theme = IMGUITheme.Default;
+        ApplyConfigurationDefaults(overwriteAll: true);
     }
 
     private void Awake()
     {
-        EnsureConfiguration();
+        ApplyConfigurationDefaults(overwriteAll: false);
+
         appliedSettings = SettingsData.CreateDefault();
         editingSettings = appliedSettings;
-        settingsWindow = new AnimatedWindow(this, "설정", windowConfig, listingConfig);
+
+        settingsWindow = new AnimatedWindow(windowConfig, listingConfig);
         confirmDialog = new ConfirmDialog(
-            this,
             confirmWindowConfig,
             listingConfig,
             dialogLayoutConfig,
             theme);
+
         SetUGUIBlocked(false);
     }
 
@@ -124,14 +123,9 @@ public sealed class SettingsManager : MonoBehaviour
 
         double guiTime = GUIFrameClock.Capture();
         bool advanceLifecycle = Event.current.type == UnityEngine.EventType.Repaint;
-        Rect targetRect = WindowLayout.LeftAligned(layoutConfig);
 
-        if (advanceLifecycle)
-        {
-            settingsWindow.Tick(targetRect, guiTime);
-        }
-
-        if (!settingsWindow.IsVisible || !settingsWindow.TryGetRect(out Rect panelRect))
+        settingsWindow.BeginFrame(WindowLayout.LeftAligned(layoutConfig), guiTime);
+        if (!settingsWindow.TryGetRect(out Rect panelRect))
         {
             SetUGUIBlocked(false);
             return;
@@ -141,6 +135,13 @@ public sealed class SettingsManager : MonoBehaviour
         IMGUIDrawing.Panel(panelRect, styles.Panel, theme.panelTint);
         DrawSettingsContent(panelRect, guiTime);
         confirmDialog.Draw(panelRect, guiTime, advanceLifecycle);
+
+        // Last: the content phase length depends on the item count recorded above.
+        if (advanceLifecycle)
+        {
+            settingsWindow.EndFrame(guiTime);
+        }
+
         SetUGUIBlocked(settingsWindow.IsVisible || confirmDialog.IsVisible);
     }
 
@@ -160,18 +161,9 @@ public sealed class SettingsManager : MonoBehaviour
             RequestClose();
         }
 
-        listing.Slider(
-            "전체",
-            ref editingSettings.masterVolume,
-            appliedSettings.masterVolume);
-        listing.Slider(
-            "음악",
-            ref editingSettings.musicVolume,
-            appliedSettings.musicVolume);
-        listing.Slider(
-            "효과음",
-            ref editingSettings.sfxVolume,
-            appliedSettings.sfxVolume);
+        listing.Slider("전체", ref editingSettings.masterVolume, appliedSettings.masterVolume);
+        listing.Slider("음악", ref editingSettings.musicVolume, appliedSettings.musicVolume);
+        listing.Slider("효과음", ref editingSettings.sfxVolume, appliedSettings.sfxVolume);
         listing.Checkbox(
             "사회적 거리두기 mk 67",
             ref editingSettings.screenShake,
@@ -209,14 +201,22 @@ public sealed class SettingsManager : MonoBehaviour
         }
     }
 
-    private void EnsureConfiguration()
+    private void ApplyConfigurationDefaults(bool overwriteAll)
     {
-        if (!windowConfig.IsUsable) windowConfig = AnimatedWindowConfig.Default;
-        if (!confirmWindowConfig.IsUsable) confirmWindowConfig = AnimatedWindowConfig.ConfirmDefault;
-        if (!listingConfig.IsUsable) listingConfig = AnimatedListingConfig.Default;
-        if (!layoutConfig.IsUsable) layoutConfig = WindowLayoutConfig.SettingsDefault;
-        if (!dialogLayoutConfig.IsUsable) dialogLayoutConfig = DialogLayoutConfig.Default;
-        if (!theme.IsUsable) theme = IMGUITheme.Default;
+        if (overwriteAll || !windowConfig.IsUsable)
+        {
+            windowConfig = AnimatedWindowConfig.Default;
+        }
+
+        if (overwriteAll || !confirmWindowConfig.IsUsable)
+        {
+            confirmWindowConfig = AnimatedWindowConfig.ConfirmDefault;
+        }
+
+        listingConfig = overwriteAll ? AnimatedListingConfig.Default : listingConfig.Resolved;
+        layoutConfig = overwriteAll ? WindowLayoutConfig.SettingsDefault : layoutConfig.Resolved;
+        dialogLayoutConfig = overwriteAll ? DialogLayoutConfig.Default : dialogLayoutConfig.Resolved;
+        theme = overwriteAll ? IMGUITheme.Default : theme.Resolved;
     }
 
     private void SetUGUIBlocked(bool blocked)

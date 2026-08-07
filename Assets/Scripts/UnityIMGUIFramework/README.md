@@ -9,17 +9,11 @@ Copy its subfolders into a project folder such as `Assets/Scripts/UI/IMGUI/`.
 Core/
   GUIFrameClock.cs       One stable unscaled timestamp per rendered frame
   GUIHost.cs             Central OnGUI entry point
-  GUIManager.cs          Low-level Rect registry and position tweening
   GUIStateScope.cs       Safe GUI color/enabled restoration
-  IMGUIEase.cs           Shared easing implementation
-  TweenMethod.cs
+  IMGUIEase.cs           TweenMethod enum and shared easing implementation
 
 Configuration/
-  AnimatedListingConfig.cs
-  AnimatedWindowConfig.cs
-  DialogLayoutConfig.cs
-  IMGUITheme.cs
-  WindowLayoutConfig.cs
+  IMGUIConfiguration.cs  All five serialized config structs
 
 Layout/
   IMGUIDrawing.cs
@@ -79,16 +73,41 @@ The confirmation dialog uses the same system and animates message, left button, 
 right button. Time is derived from `Time.unscaledTimeAsDouble`; it is never accumulated
 inside `OnGUI()`.
 
+## Per-frame contract
+
+`AnimatedWindow` owns its own rect and position tween; there is no global registry.
+Callers drive it in this order, and the order matters:
+
+```text
+1. BeginFrame(targetRect, guiTime)   advances the position tween, never calls back
+2. TryGetRect(out panelRect)         pure read, safe on every GUI event
+3. draw content, then RecordItemCount(n)
+4. EndFrame(guiTime)                 Repaint only, advances the state machine
+```
+
+`EndFrame` runs last on purpose. The content phase length is derived from the item
+count, and the item count is only known once the listing has been laid out this
+frame. Ticking first would always use the previous frame's count.
+
+All timing flows from `GUIFrameClock.Capture()`, so every animation in a frame shares
+one timestamp. Nothing reads `Time.unscaledTimeAsDouble` directly.
+
 ## Replacement note
 
 This is a replacement set, so remove or rename older global definitions of
-`GUIHost`, `GUIManager`, `TweenMethod`, `AnimatedWindow`, and related classes before
-copying these files. If the project uses namespaces, place the entire set in the same
-project namespace rather than mixing global and namespaced types.
+`GUIHost`, `TweenMethod`, `AnimatedWindow`, and related classes before copying these
+files. If the project uses namespaces, place the entire set in the same project
+namespace rather than mixing global and namespaced types.
 
 ## Validation performed
 
-All files were compiled together against a minimal Unity API compatibility stub with
-.NET SDK 10.0. No C# errors remained. The actual Unity project was not present in the
-workspace, so Unity import, Console, Play Mode, resolution, and interaction validation
-still need to be run in the target project.
+All files compile clean (0 errors) against a minimal Unity API compatibility stub on
+.NET SDK 8.0. A headless harness additionally simulates the full open/close lifecycle
+against that stub and asserts: the panel settles exactly on its target rect, the open
+sequence takes `panelSlide + contentStartDelay + SequenceDuration(itemCount)` using the
+current frame's item count, `TryGetRect` is free of side effects, the close callback
+fires exactly once and never from a getter, a zero-item window still opens, and an open
+window tracks a moved target rect.
+
+Unity import, Console, Play Mode, resolution, and interaction validation still need to
+be run in the target project.

@@ -59,6 +59,6 @@ public sealed class AnimatedListingStyles
 
     public static AnimatedListingStyles Create(IMGUITheme theme)
     {
-        return new AnimatedListingStyles(theme.IsUsable ? theme : IMGUITheme.Default);
+        return new AnimatedListingStyles(theme.Resolved);
     }
 }

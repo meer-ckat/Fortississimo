@@ -16,23 +16,17 @@ public sealed class ConfirmDialog : IDisposable
     private AnimatedListingStyles styles;
 
     public bool IsVisible => window.IsVisible;
-    public bool InputEnabled => window.InputEnabled;
 
     public ConfirmDialog(
-        UnityEngine.Object owner,
         AnimatedWindowConfig windowConfig,
         AnimatedListingConfig listingConfig,
         DialogLayoutConfig layoutConfig,
         IMGUITheme theme)
     {
-        this.listingConfig = listingConfig.IsUsable
-            ? listingConfig
-            : AnimatedListingConfig.Default;
-        this.layoutConfig = layoutConfig.IsUsable
-            ? layoutConfig
-            : DialogLayoutConfig.Default;
-        this.theme = theme.IsUsable ? theme : IMGUITheme.Default;
-        window = new AnimatedWindow(owner, nameof(ConfirmDialog), windowConfig, this.listingConfig);
+        this.listingConfig = listingConfig.Resolved;
+        this.layoutConfig = layoutConfig.Resolved;
+        this.theme = theme.Resolved;
+        window = new AnimatedWindow(windowConfig, this.listingConfig);
     }
 
     public void Open(
@@ -63,13 +57,8 @@ public sealed class ConfirmDialog : IDisposable
             return;
         }
 
-        Rect targetRect = WindowLayout.CenteredDialog(parentRect, layoutConfig);
-        if (advanceLifecycle)
-        {
-            window.Tick(targetRect, guiTime);
-        }
-
-        if (!window.IsVisible || !window.TryGetRect(out Rect panelRect))
+        window.BeginFrame(WindowLayout.CenteredDialog(parentRect, layoutConfig), guiTime);
+        if (!window.TryGetRect(out Rect panelRect))
         {
             return;
         }
@@ -90,6 +79,11 @@ public sealed class ConfirmDialog : IDisposable
         listing.Message(message);
         ButtonPairResult result = listing.ButtonPair(yesLabel, noLabel);
         window.RecordItemCount(listing.ItemCount);
+
+        if (advanceLifecycle)
+        {
+            window.EndFrame(guiTime);
+        }
 
         if (result == ButtonPairResult.Left)
         {

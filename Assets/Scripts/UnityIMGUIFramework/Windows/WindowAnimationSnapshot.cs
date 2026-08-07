@@ -8,6 +8,10 @@ public enum WindowContentPhase
     Closing
 }
 
+/// <summary>
+/// Immutable per-frame view of a window's content animation, handed to
+/// AnimatedListing so each row can resolve its own reveal progress.
+/// </summary>
 public readonly struct WindowAnimationSnapshot
 {
     public readonly WindowContentPhase phase;
@@ -49,14 +53,5 @@ public readonly struct WindowAnimationSnapshot
         float closing = Mathf.Clamp01(
             (elapsed - reverseIndex * config.itemStagger) / config.itemDuration);
         return 1f - IMGUIEase.Evaluate(config.closeTween, closing);
-    }
-
-    public float SequenceDuration
-    {
-        get
-        {
-            int gaps = Mathf.Max(0, totalItems - 1);
-            return config.itemDuration + gaps * config.itemStagger;
-        }
     }
 }

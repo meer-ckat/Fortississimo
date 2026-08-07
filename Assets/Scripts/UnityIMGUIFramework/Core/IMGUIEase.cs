@@ -1,5 +1,17 @@
 using UnityEngine;
 
+public enum TweenMethod
+{
+    Linear,
+    InCubic,
+    OutCubic,
+    InOutCubic,
+    InSine,
+    OutSine,
+    InBack,
+    OutBack
+}
+
 public static class IMGUIEase
 {
     private const float BackOvershoot = 1.70158f;

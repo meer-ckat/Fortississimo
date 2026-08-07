@@ -8,6 +8,11 @@ public enum ButtonPairResult
     Right
 }
 
+/// <summary>
+/// Immediate-mode row layout. Each public control call consumes one row and one
+/// animation index, so callers never track row indices, Y positions or GUI ids.
+/// Read ItemCount after drawing and feed it back via AnimatedWindow.RecordItemCount.
+/// </summary>
 public sealed class AnimatedListing
 {
     private readonly struct AnimatedItem
@@ -44,7 +49,7 @@ public sealed class AnimatedListing
     {
         this.contentRect = contentRect;
         this.animation = animation;
-        this.config = config.IsUsable ? config : AnimatedListingConfig.Default;
+        this.config = config.Resolved;
         this.styles = styles ?? throw new ArgumentNullException(nameof(styles));
         this.inputEnabled = inputEnabled;
         this.guiTime = guiTime;
@@ -75,15 +80,6 @@ public sealed class AnimatedListing
         }
     }
 
-    public void Label(string text, bool changed = false)
-    {
-        AnimatedItem item = NextRow();
-        using (new GUIStateScope(item.progress, false))
-        {
-            GUI.Label(item.rect, text, changed ? styles.ChangedLabel : styles.Label);
-        }
-    }
-
     public void Message(string text)
     {
         AnimatedItem item = NextRow(config.messageHeight);
@@ -96,13 +92,14 @@ public sealed class AnimatedListing
     public void Slider(
         string label,
         ref float value,
-        bool changed,
+        float appliedValue,
         float minimum = 0f,
         float maximum = 1f,
         Func<float, string> formatter = null)
     {
         AnimatedItem item = NextRow();
         SplitSliderRow(item.rect, out Rect labelRect, out Rect sliderRect, out Rect valueRect);
+        bool changed = !Mathf.Approximately(value, appliedValue);
 
         using (new GUIStateScope(item.progress, inputEnabled))
         {
@@ -115,27 +112,10 @@ public sealed class AnimatedListing
         }
     }
 
-    public void Slider(
-        string label,
-        ref float value,
-        float appliedValue,
-        float minimum = 0f,
-        float maximum = 1f,
-        Func<float, string> formatter = null)
-    {
-        Slider(
-            label,
-            ref value,
-            !Mathf.Approximately(value, appliedValue),
-            minimum,
-            maximum,
-            formatter);
-    }
-
-    public void CheckboxChanged(
+    public void Checkbox(
         string label,
         ref bool value,
-        bool changed,
+        bool appliedValue,
         string enabledLabel = "Enabled",
         string disabledLabel = "Disabled")
     {
@@ -147,22 +127,13 @@ public sealed class AnimatedListing
             item.rect.y,
             config.toggleWidth,
             item.rect.height);
+        bool changed = value != appliedValue;
 
         using (new GUIStateScope(item.progress, inputEnabled))
         {
             GUI.Label(labelRect, label, changed ? styles.ChangedLabel : styles.Label);
             value = GUI.Toggle(toggleRect, value, value ? enabledLabel : disabledLabel);
         }
-    }
-
-    public void Checkbox(
-        string label,
-        ref bool value,
-        bool appliedValue,
-        string enabledLabel = "Enabled",
-        string disabledLabel = "Disabled")
-    {
-        CheckboxChanged(label, ref value, value != appliedValue, enabledLabel, disabledLabel);
     }
 
     public bool Button(string label, bool enabled = true)
@@ -204,11 +175,6 @@ public sealed class AnimatedListing
         if (leftPressed) return ButtonPairResult.Left;
         if (rightPressed) return ButtonPairResult.Right;
         return ButtonPairResult.None;
-    }
-
-    public void Space(float height)
-    {
-        currentY += Mathf.Max(0f, height);
     }
 
     private AnimatedItem NextRow()

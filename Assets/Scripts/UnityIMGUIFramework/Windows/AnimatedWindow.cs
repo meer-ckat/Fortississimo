@@ -1,5 +1,4 @@
 using System;
-using System.Threading;
 using UnityEngine;
 
 public enum AnimatedWindowState
@@ -12,60 +11,65 @@ public enum AnimatedWindowState
     ClosingPanel
 }
 
+/// <summary>
+/// A panel that slides in from off-screen, staggers its content in, and reverses
+/// on close. Owns its own rect and position tween; there is no global registry.
+///
+/// Per-frame contract, in this order:
+///   1. BeginFrame(targetRect, guiTime)  - advances the position tween
+///   2. TryGetRect(out panelRect)        - pure read, safe on every event
+///   3. draw content, then RecordItemCount(n)
+///   4. EndFrame(guiTime)                - Repaint only; advances the state machine
+///
+/// EndFrame runs last on purpose: the content phase duration depends on the item
+/// count, which is only known once the content has been laid out this frame.
+/// </summary>
 public sealed class AnimatedWindow : IDisposable
 {
-    private static int nextId;
-
-    private readonly string guiId;
     private readonly AnimatedWindowConfig windowConfig;
     private readonly AnimatedListingConfig listingConfig;
 
     private AnimatedWindowState state;
+    private Rect rect;
     private Rect targetRect;
+
+    private Vector2 tweenFrom;
+    private Vector2 tweenTo;
+    private double tweenStartTime;
+    private float tweenDuration;
+    private TweenMethod tweenMethod;
+    private bool tweening;
+
     private double phaseStartTime;
     private int itemCount;
     private Action closeCompletion;
 
-    public AnimatedWindowState State => state;
     public bool IsVisible => state != AnimatedWindowState.Hidden;
     public bool IsOpen => state == AnimatedWindowState.Open;
-    public bool IsAnimating => IsVisible && !IsOpen;
     public bool InputEnabled => IsOpen;
 
-    public AnimatedWindow(UnityEngine.Object owner, string readableName,
-        AnimatedWindowConfig windowConfig, AnimatedListingConfig listingConfig)
+    public AnimatedWindow(AnimatedWindowConfig windowConfig, AnimatedListingConfig listingConfig)
     {
-        if (owner == null)
-        {
-            throw new ArgumentNullException(nameof(owner));
-        }
-
-        if (string.IsNullOrWhiteSpace(readableName))
-        {
-            throw new ArgumentException("A readable window name is required.", nameof(readableName));
-        }
-
-        this.windowConfig = windowConfig.IsUsable ? windowConfig : AnimatedWindowConfig.Default;
-        this.listingConfig = listingConfig.IsUsable ? listingConfig : AnimatedListingConfig.Default;
-        guiId = $"{owner.GetInstanceID()}.{readableName}.{Interlocked.Increment(ref nextId)}";
+        this.windowConfig = windowConfig.Resolved;
+        this.listingConfig = listingConfig.Resolved;
         state = AnimatedWindowState.Hidden;
     }
 
-    public void Open(Rect rect, double guiTime)
+    public void Open(Rect desiredRect, double guiTime)
     {
         if (IsVisible)
         {
             return;
         }
 
-        targetRect = rect;
+        targetRect = desiredRect;
         itemCount = 0;
         closeCompletion = null;
 
-        Rect startRect = rect;
-        startRect.x = -rect.width - windowConfig.offscreenMargin;
-        GUIManager.Register(guiId, startRect);
-        GUIManager.MoveTo(guiId, rect.position, windowConfig.openDuration, windowConfig.openTween);
+        rect = desiredRect;
+        rect.x = -desiredRect.width - windowConfig.offscreenMargin;
+
+        StartTween(desiredRect.position, windowConfig.openDuration, windowConfig.openTween, guiTime);
 
         state = AnimatedWindowState.OpeningPanel;
         phaseStartTime = guiTime;
@@ -84,7 +88,8 @@ public sealed class AnimatedWindow : IDisposable
         phaseStartTime = GUIFrameClock.Capture();
     }
 
-    public void Tick(Rect desiredTargetRect, double guiTime)
+    /// <summary>Advances the position tween. Never invokes user callbacks.</summary>
+    public void BeginFrame(Rect desiredTargetRect, double guiTime)
     {
         if (!IsVisible)
         {
@@ -92,6 +97,25 @@ public sealed class AnimatedWindow : IDisposable
         }
 
         targetRect = desiredTargetRect;
+        EvaluateTween(guiTime);
+
+        // Only a fully open window follows a moving target (screen resize).
+        if (state == AnimatedWindowState.Open)
+        {
+            rect = targetRect;
+        }
+    }
+
+    /// <summary>
+    /// Advances the open/close state machine. Call once per rendered frame, after
+    /// the content has been drawn and RecordItemCount has run.
+    /// </summary>
+    public void EndFrame(double guiTime)
+    {
+        if (!IsVisible)
+        {
+            return;
+        }
 
         switch (state)
         {
@@ -104,27 +128,22 @@ public sealed class AnimatedWindow : IDisposable
                 break;
 
             case AnimatedWindowState.OpeningContent:
-                if (guiTime - phaseStartTime >= GetContentDuration())
+                if (guiTime - phaseStartTime >= ContentDuration)
                 {
                     state = AnimatedWindowState.Open;
                     phaseStartTime = guiTime;
-                    GUIManager.SetRect(guiId, targetRect);
+                    rect = targetRect;
                 }
                 break;
 
-            case AnimatedWindowState.Open:
-                GUIManager.SetRect(guiId, targetRect);
-                break;
-
             case AnimatedWindowState.ClosingContent:
-                if (guiTime - phaseStartTime >= GetContentDuration())
+                if (guiTime - phaseStartTime >= ContentDuration)
                 {
                     BeginPanelClose(guiTime);
                 }
                 break;
 
             case AnimatedWindowState.ClosingPanel:
-                GUIManager.TryGetRect(guiId, out _);
                 if (guiTime - phaseStartTime >= windowConfig.closeDuration)
                 {
                     FinishClose();
@@ -133,15 +152,11 @@ public sealed class AnimatedWindow : IDisposable
         }
     }
 
-    public bool TryGetRect(out Rect rect)
+    /// <summary>Pure read of the current animated rect. Safe on any GUI event.</summary>
+    public bool TryGetRect(out Rect value)
     {
-        if (!IsVisible)
-        {
-            rect = default;
-            return false;
-        }
-
-        return GUIManager.TryGetRect(guiId, out rect);
+        value = IsVisible ? rect : default;
+        return IsVisible;
     }
 
     public WindowAnimationSnapshot GetAnimationSnapshot()
@@ -173,42 +188,62 @@ public sealed class AnimatedWindow : IDisposable
 
     public void Dispose()
     {
-        GUIManager.Remove(guiId);
         state = AnimatedWindowState.Hidden;
+        tweening = false;
+        itemCount = 0;
         closeCompletion = null;
     }
 
-    private float GetContentDuration()
+    private float ContentDuration => listingConfig.SequenceDuration(itemCount);
+
+    private void StartTween(Vector2 destination, float duration, TweenMethod method, double guiTime)
     {
-        if (itemCount == 0)
+        tweenFrom = rect.position;
+        tweenTo = destination;
+        tweenStartTime = guiTime;
+        tweenDuration = Mathf.Max(0f, duration);
+        tweenMethod = method;
+        tweening = true;
+
+        EvaluateTween(guiTime);
+    }
+
+    private void EvaluateTween(double guiTime)
+    {
+        if (!tweening)
         {
-            return 0f;
+            return;
         }
 
-        int gaps = Mathf.Max(0, itemCount - 1);
-        return listingConfig.itemDuration + gaps * listingConfig.itemStagger;
+        float progress = tweenDuration <= 0f
+            ? 1f
+            : Mathf.Clamp01((float)((guiTime - tweenStartTime) / tweenDuration));
+
+        rect.position = Vector2.LerpUnclamped(
+            tweenFrom,
+            tweenTo,
+            IMGUIEase.Evaluate(tweenMethod, progress));
+
+        if (progress >= 1f)
+        {
+            rect.position = tweenTo;
+            tweening = false;
+        }
     }
 
     private void BeginPanelClose(double guiTime)
     {
-        if (!GUIManager.TryGetRect(guiId, out Rect currentRect))
-        {
-            FinishClose();
-            return;
-        }
+        Vector2 exitPosition = new Vector2(-rect.width - windowConfig.offscreenMargin, rect.y);
+        StartTween(exitPosition, windowConfig.closeDuration, windowConfig.closeTween, guiTime);
 
-        Vector2 exitPosition = new Vector2(
-            -currentRect.width - windowConfig.offscreenMargin,
-            currentRect.y);
-        GUIManager.MoveTo(guiId, exitPosition, windowConfig.closeDuration, windowConfig.closeTween);
         state = AnimatedWindowState.ClosingPanel;
         phaseStartTime = guiTime;
     }
 
     private void FinishClose()
     {
-        GUIManager.Remove(guiId);
         state = AnimatedWindowState.Hidden;
+        tweening = false;
         itemCount = 0;
 
         Action completion = closeCompletion;
