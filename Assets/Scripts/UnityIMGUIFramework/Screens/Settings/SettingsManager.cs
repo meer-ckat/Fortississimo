@@ -1,7 +1,7 @@
 using System;
 using UnityEngine;
 
-public sealed class SettingsManager : MonoBehaviour
+public sealed class SettingsManager : MonoBehaviour, IGUIWindow
 {
     [Header("Reusable IMGUI Configuration")]
     [SerializeField] private AnimatedWindowConfig windowConfig = default;
@@ -12,6 +12,8 @@ public sealed class SettingsManager : MonoBehaviour
     [SerializeField] private IMGUITheme theme = default;
 
     [Header("Optional UGUI Raycast Blocker")]
+    [Tooltip("Handed to GUIWindowStack, which owns it for every window. " +
+             "Move to a dedicated host component once a second screen exists.")]
     [SerializeField] private CanvasGroup uguiInputBlocker;
 
     private AnimatedWindow settingsWindow;
@@ -23,6 +25,8 @@ public sealed class SettingsManager : MonoBehaviour
     public event Action<SettingsData> SettingsApplied;
 
     public bool IsVisible => settingsWindow != null && settingsWindow.IsVisible;
+    public bool IsModal => false;
+    public Color ModalDimColor => default; // unused: IsModal is false
     public bool HasUnsavedChanges => !editingSettings.Matches(appliedSettings);
     public SettingsData AppliedSettings => appliedSettings;
 
@@ -46,21 +50,21 @@ public sealed class SettingsManager : MonoBehaviour
             listingConfig,
             dialogLayoutConfig,
             theme);
-
-        SetUGUIBlocked(false);
     }
 
     private void OnEnable()
     {
-        GUIHost.Register(DrawGUI);
+        GUIWindowStack.SetInputBlocker(uguiInputBlocker);
+        GUIWindowStack.Add(this);
+        GUIWindowStack.Add(confirmDialog);
     }
 
     private void OnDisable()
     {
-        GUIHost.Unregister(DrawGUI);
+        GUIWindowStack.Remove(confirmDialog);
+        GUIWindowStack.Remove(this);
         confirmDialog?.Dispose();
         settingsWindow?.Dispose();
-        SetUGUIBlocked(false);
     }
 
     public void OpenSettings()
@@ -72,7 +76,7 @@ public sealed class SettingsManager : MonoBehaviour
 
         editingSettings = appliedSettings;
         settingsWindow.Open(WindowLayout.LeftAligned(layoutConfig), GUIFrameClock.Capture());
-        SetUGUIBlocked(true);
+        GUIWindowStack.BringToFront(this);
     }
 
     public void RequestClose()
@@ -88,16 +92,13 @@ public sealed class SettingsManager : MonoBehaviour
             return;
         }
 
-        if (settingsWindow.TryGetRect(out Rect parentRect))
-        {
-            confirmDialog.Open(
-                parentRect,
-                "변경 사항이 있습니다.",
-                DiscardAndClose,
-                null,
-                "휘발시키기",
-                "보존하기");
-        }
+        confirmDialog.Open(
+            SettingsPanelRect,
+            "변경 사항이 있습니다.",
+            DiscardAndClose,
+            null,
+            "휘발시키기",
+            "보존하기");
     }
 
     public void ApplySettings()
@@ -114,38 +115,43 @@ public sealed class SettingsManager : MonoBehaviour
         SettingsApplied?.Invoke(appliedSettings);
     }
 
-    private void DrawGUI()
+    public void DrawWindow(double guiTime, bool advanceLifecycle, bool inputEnabled)
     {
         if (settingsWindow == null || !settingsWindow.IsVisible)
         {
             return;
         }
 
-        double guiTime = GUIFrameClock.Capture();
-        bool advanceLifecycle = Event.current.type == UnityEngine.EventType.Repaint;
-
         settingsWindow.BeginFrame(WindowLayout.LeftAligned(layoutConfig), guiTime);
         if (!settingsWindow.TryGetRect(out Rect panelRect))
         {
-            SetUGUIBlocked(false);
             return;
         }
 
         EnsureStyles();
         IMGUIDrawing.Panel(panelRect, styles.Panel, theme.panelTint);
-        DrawSettingsContent(panelRect, guiTime);
-        confirmDialog.Draw(panelRect, guiTime, advanceLifecycle);
+        DrawSettingsContent(panelRect, guiTime, inputEnabled);
 
         // Last: the content phase length depends on the item count recorded above.
         if (advanceLifecycle)
         {
             settingsWindow.EndFrame(guiTime);
         }
-
-        SetUGUIBlocked(settingsWindow.IsVisible || confirmDialog.IsVisible);
     }
 
-    private void DrawSettingsContent(Rect panelRect, double guiTime)
+    public void NotifyCancelPressed()
+    {
+        RequestClose();
+    }
+
+    private Rect SettingsPanelRect()
+    {
+        return settingsWindow.TryGetRect(out Rect rect)
+            ? rect
+            : WindowLayout.LeftAligned(layoutConfig);
+    }
+
+    private void DrawSettingsContent(Rect panelRect, double guiTime, bool inputEnabled)
     {
         Rect contentRect = WindowLayout.Content(panelRect, layoutConfig.contentPadding);
         AnimatedListing listing = new AnimatedListing(
@@ -153,7 +159,7 @@ public sealed class SettingsManager : MonoBehaviour
             settingsWindow.GetAnimationSnapshot(),
             listingConfig,
             styles,
-            settingsWindow.InputEnabled && !confirmDialog.IsVisible,
+            settingsWindow.InputEnabled && inputEnabled,
             guiTime);
 
         if (listing.TitleBar("Settings"))
@@ -190,7 +196,6 @@ public sealed class SettingsManager : MonoBehaviour
     private void OnSettingsClosed()
     {
         editingSettings = appliedSettings;
-        SetUGUIBlocked(false);
     }
 
     private void EnsureStyles()
@@ -217,22 +222,5 @@ public sealed class SettingsManager : MonoBehaviour
         layoutConfig = overwriteAll ? WindowLayoutConfig.SettingsDefault : layoutConfig.Resolved;
         dialogLayoutConfig = overwriteAll ? DialogLayoutConfig.Default : dialogLayoutConfig.Resolved;
         theme = overwriteAll ? IMGUITheme.Default : theme.Resolved;
-    }
-
-    private void SetUGUIBlocked(bool blocked)
-    {
-        if (uguiInputBlocker == null)
-        {
-            return;
-        }
-
-        GameObject blockerObject = uguiInputBlocker.gameObject;
-        if (blockerObject.activeSelf != blocked)
-        {
-            blockerObject.SetActive(blocked);
-        }
-
-        uguiInputBlocker.blocksRaycasts = blocked;
-        uguiInputBlocker.interactable = blocked;
     }
 }

@@ -8,7 +8,9 @@ Copy its subfolders into a project folder such as `Assets/Scripts/UI/IMGUI/`.
 ```text
 Core/
   GUIFrameClock.cs       One stable unscaled timestamp per rendered frame
-  GUIHost.cs             Central OnGUI entry point
+  GUIHost.cs             Central OnGUI entry point, drives the stack, owns Escape
+  GUIWindowStack.cs      Ordering, input gating, modal dim, UGUI blocker
+  IGUIWindow.cs          What the stack needs from a window
   GUIStateScope.cs       Safe GUI color/enabled restoration
   IMGUIEase.cs           TweenMethod enum and shared easing implementation
 
@@ -33,6 +35,26 @@ Screens/Settings/
   SettingsManager.cs
 ```
 
+## The window stack
+
+`GUIWindowStack` holds every live window bottom to top. Anything that is a decision
+*between* windows lives there, not in a screen:
+
+| Decision | Rule |
+|---|---|
+| Draw order | Stack order. `BringToFront` on open. |
+| Input | Everything below the topmost modal is gated off. |
+| Modal dim | One pass, behind the topmost modal only. |
+| Escape | Topmost visible window, then consumed. |
+| UGUI blocker | On while any window is visible. |
+
+A screen implements `IGUIWindow` and answers only for itself. It never calls `Draw`
+on another window and never checks whether another window is open in order to
+disable its own controls — `inputEnabled` arrives as a parameter.
+
+Adding a second screen is `GUIWindowStack.Add(this)` in `OnEnable` and `Remove` in
+`OnDisable`. Nothing in the existing screens changes.
+
 ## Scene setup
 
 1. Add `SettingsManager` to a persistent scene object.
@@ -40,7 +62,9 @@ Screens/Settings/
 3. Optionally create a separate full-screen UGUI object with a transparent `Image`
    whose `Raycast Target` is enabled. Add a `CanvasGroup` and assign it to
    `uguiInputBlocker`. Keep this blocker separate from the object containing
-   `SettingsManager`, because the manager activates and deactivates it.
+   `SettingsManager`, because the stack activates and deactivates it. The field is
+   on `SettingsManager` only until a second screen exists; it is handed straight to
+   `GUIWindowStack.SetInputBlocker` and belongs on a dedicated host component.
 4. `GUIHost` is created automatically. A manually placed `GUIHost` is also supported.
 
 `Reset()` supplies all default layout, animation, and theme values. Existing components
@@ -102,12 +126,20 @@ namespace rather than mixing global and namespaced types.
 ## Validation performed
 
 All files compile clean (0 errors) against a minimal Unity API compatibility stub on
-.NET SDK 8.0. A headless harness additionally simulates the full open/close lifecycle
-against that stub and asserts: the panel settles exactly on its target rect, the open
-sequence takes `panelSlide + contentStartDelay + SequenceDuration(itemCount)` using the
-current frame's item count, `TryGetRect` is free of side effects, the close callback
-fires exactly once and never from a getter, a zero-item window still opens, and an open
-window tracks a moved target rect.
+.NET SDK 8.0. A headless harness drives that stub and asserts 22 properties:
+
+*Window lifecycle* - the panel starts off-screen and settles exactly on its target
+rect; the open sequence takes `openDuration + contentStartDelay +
+SequenceDuration(itemCount)` off the current frame's item count; `TryGetRect` has no
+side effects and never fires the close callback; the close callback fires exactly once.
+
+*Stack* - windows draw bottom to top and `BringToFront` reorders; hidden windows are
+skipped; the modal dim is drawn exactly once even with two modals stacked; everything
+below the topmost modal loses input while siblings without a modal keep it; Escape
+reaches only the topmost window, falls through when it hides, and is not consumed by
+an empty stack; a window may close another mid-draw without invalidating iteration;
+the UGUI blocker follows stack occupancy and a raycast-on scene blocker is forced off
+when handed over.
 
 Unity import, Console, Play Mode, resolution, and interaction validation still need to
 be run in the target project.

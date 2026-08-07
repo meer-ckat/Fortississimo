@@ -1,49 +1,21 @@
-using System;
-using System.Collections.Generic;
 using UnityEngine;
 
+/// <summary>
+/// The single OnGUI entry point. Owns nothing about windows beyond driving the
+/// stack once per event and lifting Escape out of any individual window's hands.
+/// </summary>
 [DefaultExecutionOrder(-1000)]
 public sealed class GUIHost : MonoBehaviour
 {
-    private static readonly List<Action> DrawCallbacks = new List<Action>();
-    private static Action[] callbackSnapshot = Array.Empty<Action>();
     private static GUIHost instance;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     private static void ResetStatics()
     {
-        DrawCallbacks.Clear();
-        callbackSnapshot = Array.Empty<Action>();
         instance = null;
     }
 
-    public static void Register(Action drawCallback)
-    {
-        if (drawCallback == null)
-        {
-            throw new ArgumentNullException(nameof(drawCallback));
-        }
-
-        EnsureInstance();
-        if (!DrawCallbacks.Contains(drawCallback))
-        {
-            DrawCallbacks.Add(drawCallback);
-            callbackSnapshot = DrawCallbacks.ToArray();
-        }
-    }
-
-    public static void Unregister(Action drawCallback)
-    {
-        if (drawCallback != null)
-        {
-            if (DrawCallbacks.Remove(drawCallback))
-            {
-                callbackSnapshot = DrawCallbacks.ToArray();
-            }
-        }
-    }
-
-    private static void EnsureInstance()
+    public static void EnsureInstance()
     {
         if (instance != null)
         {
@@ -75,16 +47,21 @@ public sealed class GUIHost : MonoBehaviour
 
     private void OnGUI()
     {
-        for (int i = 0; i < callbackSnapshot.Length; i++)
+        Event current = Event.current;
+
+        // Escape is a stack decision: it belongs to whichever window is on top,
+        // and no window below should also see it.
+        if (current.type == UnityEngine.EventType.KeyDown &&
+            current.keyCode == KeyCode.Escape &&
+            GUIWindowStack.NotifyCancelPressed())
         {
-            try
-            {
-                callbackSnapshot[i]?.Invoke();
-            }
-            catch (Exception exception)
-            {
-                Debug.LogException(exception);
-            }
+            current.Use();
+            return;
         }
+
+        double guiTime = GUIFrameClock.Capture();
+        bool advanceLifecycle = current.type == UnityEngine.EventType.Repaint;
+
+        GUIWindowStack.DrawAll(guiTime, advanceLifecycle);
     }
 }

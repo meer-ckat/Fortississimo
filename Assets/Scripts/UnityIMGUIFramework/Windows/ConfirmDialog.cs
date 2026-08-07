@@ -1,13 +1,20 @@
 using System;
 using UnityEngine;
 
-public sealed class ConfirmDialog : IDisposable
+/// <summary>
+/// Yes/No modal. A stack peer, not a child of whoever opened it — the opener no
+/// longer calls Draw on it, and no longer has to gate its own input against it.
+/// The anchor is supplied as a delegate so the dialog stays centred on a window
+/// whose rect is still animating or being resized.
+/// </summary>
+public sealed class ConfirmDialog : IGUIWindow, IDisposable
 {
     private readonly AnimatedWindow window;
     private readonly AnimatedListingConfig listingConfig;
     private readonly DialogLayoutConfig layoutConfig;
     private readonly IMGUITheme theme;
 
+    private Func<Rect> anchorProvider;
     private string message;
     private string yesLabel;
     private string noLabel;
@@ -16,6 +23,8 @@ public sealed class ConfirmDialog : IDisposable
     private AnimatedListingStyles styles;
 
     public bool IsVisible => window.IsVisible;
+    public bool IsModal => true;
+    public Color ModalDimColor => theme.modalDimColor;
 
     public ConfirmDialog(
         AnimatedWindowConfig windowConfig,
@@ -30,7 +39,7 @@ public sealed class ConfirmDialog : IDisposable
     }
 
     public void Open(
-        Rect parentRect,
+        Func<Rect> anchor,
         string message,
         Action onYes,
         Action onNo = null,
@@ -42,29 +51,31 @@ public sealed class ConfirmDialog : IDisposable
             return;
         }
 
+        anchorProvider = anchor;
         this.message = message ?? string.Empty;
         this.yesLabel = yesLabel ?? string.Empty;
         this.noLabel = noLabel ?? string.Empty;
         yesAction = onYes;
         noAction = onNo;
-        window.Open(WindowLayout.CenteredDialog(parentRect, layoutConfig), GUIFrameClock.Capture());
+
+        window.Open(TargetRect(), GUIFrameClock.Capture());
+        GUIWindowStack.BringToFront(this);
     }
 
-    public void Draw(Rect parentRect, double guiTime, bool advanceLifecycle)
+    public void DrawWindow(double guiTime, bool advanceLifecycle, bool inputEnabled)
     {
         if (!window.IsVisible)
         {
             return;
         }
 
-        window.BeginFrame(WindowLayout.CenteredDialog(parentRect, layoutConfig), guiTime);
+        window.BeginFrame(TargetRect(), guiTime);
         if (!window.TryGetRect(out Rect panelRect))
         {
             return;
         }
 
         EnsureStyles();
-        IMGUIDrawing.ModalDim(theme.modalDimColor);
         IMGUIDrawing.Panel(panelRect, styles.Panel, theme.panelTint);
 
         Rect contentRect = WindowLayout.Content(panelRect, layoutConfig.contentPadding);
@@ -73,7 +84,7 @@ public sealed class ConfirmDialog : IDisposable
             window.GetAnimationSnapshot(),
             listingConfig,
             styles,
-            window.InputEnabled,
+            window.InputEnabled && inputEnabled,
             guiTime);
 
         listing.Message(message);
@@ -87,15 +98,20 @@ public sealed class ConfirmDialog : IDisposable
 
         if (result == ButtonPairResult.Left)
         {
-            Action callback = yesAction;
-            ClearCallbacks();
-            window.Close(callback);
+            Answer(yesAction);
         }
         else if (result == ButtonPairResult.Right)
         {
-            Action callback = noAction;
-            ClearCallbacks();
-            window.Close(callback);
+            Answer(noAction);
+        }
+    }
+
+    /// <summary>Escape means "No" — the non-destructive answer.</summary>
+    public void NotifyCancelPressed()
+    {
+        if (window.IsOpen)
+        {
+            Answer(noAction);
         }
     }
 
@@ -103,6 +119,18 @@ public sealed class ConfirmDialog : IDisposable
     {
         ClearCallbacks();
         window.Dispose();
+    }
+
+    private Rect TargetRect()
+    {
+        Rect anchor = anchorProvider != null ? anchorProvider() : WindowLayout.ScreenRect();
+        return WindowLayout.CenteredDialog(anchor, layoutConfig);
+    }
+
+    private void Answer(Action callback)
+    {
+        ClearCallbacks();
+        window.Close(callback);
     }
 
     private void EnsureStyles()
