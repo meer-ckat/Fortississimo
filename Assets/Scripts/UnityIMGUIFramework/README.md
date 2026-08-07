@@ -18,6 +18,7 @@ Configuration/
   IMGUIConfiguration.cs  All five serialized config structs
 
 Layout/
+  GUIScrollView.cs       Overflow-only scroll view + retained GUIScrollState
   IMGUIDrawing.cs
   WindowLayout.cs
 
@@ -79,6 +80,32 @@ music, SFX, screen-shake, persistence, and audio-mixer behavior through the
 The UI calls remain deliberately explicit in `DrawSettingsContent()`. Adding a setting
 does not require a row index, Y position, GUI id, animation list, or removal list.
 
+## Scrolling
+
+`GUIScrollView.Begin` pushes a clipping region **only when the content actually
+overflows**. A scroll view clips to its own rect, which would cut the row entry
+animation off at the left edge, so:
+
+| Content | Clipping | Row reveal |
+|---|---|---|
+| Fits | none pushed | slides in from outside the panel, unchanged |
+| Overflows | scroll view | fade only (`clipped: true` drops the horizontal offset) |
+
+Content height is measured during the draw and applied on the next frame, the same
+bargain `AnimatedWindow` makes with its item count — a cursor layout cannot know its
+extent until the calls have run. One stale frame only affects the scrollbar range.
+
+`GUIScrollState` is retained, so it lives on the screen, not on the per-frame
+listing. Call `Reset()` when the window opens.
+
+Split a window across several listings by passing the previous one's `NextIndex` as
+the next one's `startIndex`; the stagger then runs continuously instead of restarting
+at 0. The settings screen uses this to keep the title bar outside the scroll view so
+the close button cannot scroll out of reach.
+
+With the shipped defaults the settings body view is 522px and its six rows measure
+328px, so three more rows fit before it begins to scroll.
+
 ## Animation behavior
 
 Opening is:
@@ -126,7 +153,7 @@ namespace rather than mixing global and namespaced types.
 ## Validation performed
 
 All files compile clean (0 errors) against a minimal Unity API compatibility stub on
-.NET SDK 8.0. A headless harness drives that stub and asserts 22 properties:
+.NET SDK 8.0. A headless harness drives that stub and asserts 39 properties:
 
 *Window lifecycle* - the panel starts off-screen and settles exactly on its target
 rect; the open sequence takes `openDuration + contentStartDelay +
@@ -140,6 +167,14 @@ reaches only the topmost window, falls through when it hides, and is not consume
 an empty stack; a window may close another mid-draw without invalidating iteration;
 the UGUI blocker follows stack occupancy and a raycast-on scene blocker is forced off
 when handed over.
+
+*Scrolling* - measured content height matches the row arithmetic; no clipping region
+is pushed while the content fits, and `Dispose` balances `BeginScrollView` when one
+is; the view tracks content height, reserves the scrollbar gutter, uses local
+coordinates, and falls back to a 16px gutter for configs serialized before
+`scrollbarWidth` existed; `Reset` returns to the top; a clipped row keeps its x while
+an unclipped one slides in; and a listing given `startIndex` is demonstrably later in
+the stagger than one that restarts at 0.
 
 Unity import, Console, Play Mode, resolution, and interaction validation still need to
 be run in the target project.

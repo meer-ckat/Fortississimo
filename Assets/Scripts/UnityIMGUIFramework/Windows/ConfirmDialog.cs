@@ -89,7 +89,7 @@ public sealed class ConfirmDialog : IGUIWindow, IDisposable
 
         listing.Message(message);
         ButtonPairResult result = listing.ButtonPair(yesLabel, noLabel);
-        window.RecordItemCount(listing.ItemCount);
+        window.RecordItemCount(listing.NextIndex);
 
         if (advanceLifecycle)
         {

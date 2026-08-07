@@ -11,7 +11,10 @@ public enum ButtonPairResult
 /// <summary>
 /// Immediate-mode row layout. Each public control call consumes one row and one
 /// animation index, so callers never track row indices, Y positions or GUI ids.
-/// Read ItemCount after drawing and feed it back via AnimatedWindow.RecordItemCount.
+///
+/// Split a window across several listings (fixed header + scrolling body) by passing
+/// the previous listing's NextIndex as the next one's startIndex; the stagger then
+/// runs continuously across them. Feed the final NextIndex to RecordItemCount.
 /// </summary>
 public sealed class AnimatedListing
 {
@@ -33,11 +36,20 @@ public sealed class AnimatedListing
     private readonly AnimatedListingStyles styles;
     private readonly bool inputEnabled;
     private readonly double guiTime;
+    private readonly int startIndex;
+    private readonly bool clipped;
 
     private float currentY;
     private int itemIndex;
 
-    public int ItemCount => itemIndex;
+    /// <summary>Rows consumed by this listing.</summary>
+    public int ItemCount => itemIndex - startIndex;
+
+    /// <summary>Animation index to hand the next listing, so the stagger continues.</summary>
+    public int NextIndex => itemIndex;
+
+    /// <summary>Height consumed so far. Feed to GUIScrollState.SetContentHeight.</summary>
+    public float ContentHeight => currentY - contentRect.y;
 
     public AnimatedListing(
         Rect contentRect,
@@ -45,7 +57,9 @@ public sealed class AnimatedListing
         AnimatedListingConfig config,
         AnimatedListingStyles styles,
         bool inputEnabled,
-        double guiTime)
+        double guiTime,
+        int startIndex = 0,
+        bool clipped = false)
     {
         this.contentRect = contentRect;
         this.animation = animation;
@@ -53,8 +67,10 @@ public sealed class AnimatedListing
         this.styles = styles ?? throw new ArgumentNullException(nameof(styles));
         this.inputEnabled = inputEnabled;
         this.guiTime = guiTime;
+        this.startIndex = Mathf.Max(0, startIndex);
+        this.clipped = clipped;
         currentY = contentRect.y;
-        itemIndex = 0;
+        itemIndex = this.startIndex;
     }
 
     public bool TitleBar(string title, string closeLabel = "×")
@@ -198,7 +214,14 @@ public sealed class AnimatedListing
     {
         float progress = animation.GetProgress(itemIndex, guiTime);
         itemIndex++;
-        rect.x -= (1f - progress) * config.horizontalOffset;
+
+        // A scroll view clips to its own rect, so a row sliding in from the left
+        // would be cut off rather than sliding. Inside one, reveal by fade only.
+        if (!clipped)
+        {
+            rect.x -= (1f - progress) * config.horizontalOffset;
+        }
+
         return new AnimatedItem(rect, progress);
     }
 

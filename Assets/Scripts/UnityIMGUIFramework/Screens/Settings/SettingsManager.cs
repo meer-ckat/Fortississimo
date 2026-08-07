@@ -19,6 +19,7 @@ public sealed class SettingsManager : MonoBehaviour, IGUIWindow
     private AnimatedWindow settingsWindow;
     private ConfirmDialog confirmDialog;
     private AnimatedListingStyles styles;
+    private readonly GUIScrollState bodyScroll = new GUIScrollState();
     private SettingsData appliedSettings;
     private SettingsData editingSettings;
 
@@ -75,6 +76,7 @@ public sealed class SettingsManager : MonoBehaviour, IGUIWindow
         }
 
         editingSettings = appliedSettings;
+        bodyScroll.Reset();
         settingsWindow.Open(WindowLayout.LeftAligned(layoutConfig), GUIFrameClock.Capture());
         GUIWindowStack.BringToFront(this);
     }
@@ -154,37 +156,66 @@ public sealed class SettingsManager : MonoBehaviour, IGUIWindow
     private void DrawSettingsContent(Rect panelRect, double guiTime, bool inputEnabled)
     {
         Rect contentRect = WindowLayout.Content(panelRect, layoutConfig.contentPadding);
-        AnimatedListing listing = new AnimatedListing(
-            contentRect,
-            settingsWindow.GetAnimationSnapshot(),
-            listingConfig,
-            styles,
-            settingsWindow.InputEnabled && inputEnabled,
-            guiTime);
+        WindowAnimationSnapshot animation = settingsWindow.GetAnimationSnapshot();
+        bool controlsEnabled = settingsWindow.InputEnabled && inputEnabled;
 
-        if (listing.TitleBar("Settings"))
+        // The title bar stays outside the scroll view so the close button cannot
+        // scroll out of reach.
+        Rect headerRect = new Rect(
+            contentRect.x,
+            contentRect.y,
+            contentRect.width,
+            listingConfig.titleHeight + listingConfig.sectionSpacing);
+
+        AnimatedListing header = new AnimatedListing(
+            headerRect, animation, listingConfig, styles, controlsEnabled, guiTime);
+
+        if (header.TitleBar("Settings"))
         {
             RequestClose();
         }
 
-        listing.Slider("전체", ref editingSettings.masterVolume, appliedSettings.masterVolume);
-        listing.Slider("음악", ref editingSettings.musicVolume, appliedSettings.musicVolume);
-        listing.Slider("효과음", ref editingSettings.sfxVolume, appliedSettings.sfxVolume);
-        listing.Checkbox(
-            "사회적 거리두기 mk 67",
-            ref editingSettings.screenShake,
-            appliedSettings.screenShake);
-        listing.Checkbox(
-            "강남스타일",
-            ref editingSettings.fullscreen,
-            appliedSettings.fullscreen);
+        Rect bodyRect = new Rect(
+            contentRect.x,
+            headerRect.yMax,
+            contentRect.width,
+            Mathf.Max(1f, contentRect.yMax - headerRect.yMax));
 
-        if (listing.Button("Apply Settings", HasUnsavedChanges))
+        using (GUIScrollView.Scope scroll =
+               GUIScrollView.Begin(bodyRect, bodyScroll, listingConfig.scrollbarWidth))
         {
-            ApplySettings();
-        }
+            // startIndex continues the stagger from the header rather than
+            // restarting it, so the title and the first row do not animate together.
+            AnimatedListing body = new AnimatedListing(
+                scroll.ViewRect,
+                animation,
+                listingConfig,
+                styles,
+                controlsEnabled,
+                guiTime,
+                startIndex: header.NextIndex,
+                clipped: scroll.IsScrolling);
 
-        settingsWindow.RecordItemCount(listing.ItemCount);
+            body.Slider("전체", ref editingSettings.masterVolume, appliedSettings.masterVolume);
+            body.Slider("음악", ref editingSettings.musicVolume, appliedSettings.musicVolume);
+            body.Slider("효과음", ref editingSettings.sfxVolume, appliedSettings.sfxVolume);
+            body.Checkbox(
+                "사회적 거리두기 mk 67",
+                ref editingSettings.screenShake,
+                appliedSettings.screenShake);
+            body.Checkbox(
+                "강남스타일",
+                ref editingSettings.fullscreen,
+                appliedSettings.fullscreen);
+
+            if (body.Button("Apply Settings", HasUnsavedChanges))
+            {
+                ApplySettings();
+            }
+
+            bodyScroll.SetContentHeight(body.ContentHeight);
+            settingsWindow.RecordItemCount(body.NextIndex);
+        }
     }
 
     private void DiscardAndClose()

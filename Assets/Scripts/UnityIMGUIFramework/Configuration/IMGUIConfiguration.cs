@@ -66,6 +66,7 @@ public struct AnimatedListingConfig
     [Min(1f)] public float buttonHeight;
     [Min(1f)] public float closeButtonSize;
     [Min(0f)] public float buttonPairGap;
+    [Min(0f)] public float scrollbarWidth;
 
     [Header("Animation")]
     [Min(0.001f)] public float itemDuration;
@@ -111,6 +112,7 @@ public struct AnimatedListingConfig
         buttonHeight = 40f,
         closeButtonSize = 36f,
         buttonPairGap = 14f,
+        scrollbarWidth = 16f,
         itemDuration = 0.28f,
         itemStagger = 0.065f,
         horizontalOffset = 140f,
