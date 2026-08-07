@@ -1,0 +1,41 @@
+{
+  "displayName": "기본 카드",
+  "cards": [
+    {
+      "title": "보",
+      "desc": "아주 평범한 보자기입니다.",
+      "image": "",
+      "rps": "Paper",
+      "moveBlockMe": 0,
+      "moveBlockOps": 0,
+      "moveMe": 0,
+      "moveOps": 0,
+      "probability": 0.0,
+      "cardType": "Good"
+    },
+    {
+      "title": "바위",
+      "desc": "아주 평범한 바위입니다.",
+      "image": "",
+      "rps": "Rock",
+      "moveBlockMe": 0,
+      "moveBlockOps": 0,
+      "moveMe": 0,
+      "moveOps": 0,
+      "probability": 0.0,
+      "cardType": "Good"
+    },
+    {
+      "title": "가위",
+      "desc": "산업혁명 이후 발달된 철제 기술로 제작된 가위입니다.",
+      "image": "",
+      "rps": "Scissor",
+      "moveBlockMe": 0,
+      "moveBlockOps": 0,
+      "moveMe": 0,
+      "moveOps": 0,
+      "probability": 0.0,
+      "cardType": "Good"
+    }
+  ]
+}

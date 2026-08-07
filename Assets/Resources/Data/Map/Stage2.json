@@ -1,0 +1,38 @@
+{
+  "displayName": "스테이지 2 (통곡의 다리)",
+  "cells": [
+    { "x": 0.0,  "y": 0.0, "eventType": "normal",     "color": "#7C8794" },
+    { "x": 1.5,  "y": 0.0, "eventType": "normal",     "color": "#78828F" },
+    { "x": 3.0,  "y": 0.0, "eventType": "good",       "color": "#4A7C6F" },
+    { "x": 4.5,  "y": 0.0, "eventType": "bad",        "color": "#8B3A3A" },
+
+    { "x": 6.0,  "y": 0.0, "eventType": "normal",     "color": "#6E7885" },
+    { "x": 7.5,  "y": 0.0, "eventType": "bad",        "color": "#853636" },
+    { "x": 9.0,  "y": 0.0, "eventType": "good",       "color": "#457366" },
+    { "x": 10.5, "y": 0.0, "eventType": "bad",        "color": "#7E3232" },
+    { "x": 12.0, "y": 0.0, "eventType": "bad",        "color": "#782E2E" },
+
+    { "x": 13.5, "y": 0.0, "eventType": "normal",     "color": "#5F6875" },
+    { "x": 15.0, "y": 0.0, "eventType": "super_bad",  "color": "#4A0E0E" },
+    { "x": 16.5, "y": 0.0, "eventType": "bad",        "color": "#722A2A" },
+    { "x": 18.0, "y": 0.0, "eventType": "good",       "color": "#406A5E" },
+    { "x": 19.5, "y": 0.0, "eventType": "bad",        "color": "#6C2626" },
+
+    { "x": 19.5, "y": 1.5, "eventType": "super_bad",  "color": "#3D0A0A" },
+    { "x": 18.0, "y": 1.5, "eventType": "bad",        "color": "#6C2626" },
+    { "x": 16.5, "y": 1.5, "eventType": "normal",     "color": "#565F6B" },
+    { "x": 15.0, "y": 1.5, "eventType": "normal",     "color": "#5A6470" },
+
+    { "x": 13.5, "y": 1.5, "eventType": "bad",        "color": "#722A2A" },
+    { "x": 12.0, "y": 1.5, "eventType": "super_good", "color": "#C9A227" },
+    { "x": 10.5, "y": 1.5, "eventType": "bad",        "color": "#782E2E" },
+    { "x": 9.0,  "y": 1.5, "eventType": "normal",     "color": "#5F6875" },
+
+    { "x": 7.5,  "y": 1.5, "eventType": "normal",     "color": "#646E7B" },
+    { "x": 6.0,  "y": 1.5, "eventType": "super_bad",  "color": "#4A0E0E" },
+    { "x": 4.5,  "y": 1.5, "eventType": "bad",        "color": "#7E3232" },
+    { "x": 3.0,  "y": 1.5, "eventType": "good",       "color": "#457366" },
+    { "x": 1.5,  "y": 1.5, "eventType": "bad",        "color": "#853636" },
+    { "x": 0.0,  "y": 1.5, "eventType": "normal",     "color": "#78828F" }
+  ]
+}

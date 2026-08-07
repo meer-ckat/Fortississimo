@@ -1,0 +1,25 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: dc8ff33eb9d902441ac39ee1a77e4ba0, type: 3}
+  m_Name: Scissor
+  m_EditorClassIdentifier: Assembly-CSharp::BaseCardData
+  Title: "\uAC00\uC704"
+  Desc: "\uC0B0\uC5C5\uD601\uBA85 \uC774\uD6C4 \uBC1C\uB2EC\uB41C \uCCA0\uC81C \uAE30\uC220\uB85C
+    \uC81C\uC791\uB41C \uAC00\uC704\uC785\uB2C8\uB2E4."
+  Image: {fileID: 0}
+  RPS: 2
+  moveBlockMe: 0
+  moveBlockOps: 0
+  moveMe: 0
+  moveOps: 0
+  possiblity: 0
+  cardType: 0

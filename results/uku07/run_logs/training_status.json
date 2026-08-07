@@ -1,0 +1,38 @@
+{
+    "Ukulele": {
+        "checkpoints": [
+            {
+                "steps": 49998,
+                "file_path": "results\\uku07\\Ukulele\\Ukulele-49998.onnx",
+                "reward": 1.456666129330794,
+                "creation_time": 1785650608.648619,
+                "auxillary_file_paths": [
+                    "results\\uku07\\Ukulele\\Ukulele-49998.pt"
+                ]
+            },
+            {
+                "steps": 69575,
+                "file_path": "results\\uku07\\Ukulele\\Ukulele-69575.onnx",
+                "reward": 0.048587793374762815,
+                "creation_time": 1785651084.842759,
+                "auxillary_file_paths": [
+                    "results\\uku07\\Ukulele\\Ukulele-69575.pt"
+                ]
+            }
+        ],
+        "final_checkpoint": {
+            "steps": 69575,
+            "file_path": "results\\uku07\\Ukulele.onnx",
+            "reward": 0.048587793374762815,
+            "creation_time": 1785651084.842759,
+            "auxillary_file_paths": [
+                "results\\uku07\\Ukulele\\Ukulele-69575.pt"
+            ]
+        }
+    },
+    "metadata": {
+        "stats_format_version": "0.3.0",
+        "mlagents_version": "1.1.0",
+        "torch_version": "2.13.0+cpu"
+    }
+}

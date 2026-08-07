@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: dc8ff33eb9d902441ac39ee1a77e4ba0, type: 3}
+  m_Name: "\uBA40\uBBF8"
+  m_EditorClassIdentifier: Assembly-CSharp::BaseCardData
+  Title: "\uBA40\uBBF8"
+  Desc: "2\uD134 \uB3D9\uC548 RPS\uB85C \uC774\uAE38 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4."
+  Image: {fileID: 0}
+  RPS: 0
+  moveBlockMe: 2
+  moveBlockOps: 0
+  moveMe: 0
+  moveOps: 0
+  possiblity: 1
+  cardType: 2

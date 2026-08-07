@@ -1,0 +1,29 @@
+{
+    "Ukulele": {
+        "checkpoints": [
+            {
+                "steps": 140,
+                "file_path": "results\\uku07-smoke\\Ukulele\\Ukulele-140.onnx",
+                "reward": 1.9499998688697815,
+                "creation_time": 1785647510.708777,
+                "auxillary_file_paths": [
+                    "results\\uku07-smoke\\Ukulele\\Ukulele-140.pt"
+                ]
+            }
+        ],
+        "final_checkpoint": {
+            "steps": 140,
+            "file_path": "results\\uku07-smoke\\Ukulele.onnx",
+            "reward": 1.9499998688697815,
+            "creation_time": 1785647510.708777,
+            "auxillary_file_paths": [
+                "results\\uku07-smoke\\Ukulele\\Ukulele-140.pt"
+            ]
+        }
+    },
+    "metadata": {
+        "stats_format_version": "0.3.0",
+        "mlagents_version": "1.1.0",
+        "torch_version": "2.13.0+cpu"
+    }
+}

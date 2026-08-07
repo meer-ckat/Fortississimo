@@ -1,0 +1,25 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: dc8ff33eb9d902441ac39ee1a77e4ba0, type: 3}
+  m_Name: "\uD558\uC774\uC7AC\uD0B9"
+  m_EditorClassIdentifier: Assembly-CSharp::BaseCardData
+  Title: "\uD558\uC774\uC7AC\uD0B9"
+  Desc: "\uC0C1\uB300\uC758 \uB9D0\uC744 GTA \uD558\uC5EC 2\uD134 \uB3D9\uC548 RPS\uB85C
+    \uC774\uAE30\uC9C0 \uBABB\uD558\uAC8C \uD569\uB2C8\uB2E4."
+  Image: {fileID: 0}
+  RPS: 0
+  moveBlockMe: 0
+  moveBlockOps: 2
+  moveMe: 0
+  moveOps: 0
+  possiblity: 0.5
+  cardType: 0

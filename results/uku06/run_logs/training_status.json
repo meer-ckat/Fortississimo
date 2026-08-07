@@ -1,0 +1,65 @@
+{
+    "Ukulele": {
+        "checkpoints": [
+            {
+                "steps": 149993,
+                "file_path": "results\\uku06\\Ukulele\\Ukulele-149993.onnx",
+                "reward": 1.7315882006112266,
+                "creation_time": 1785601147.0467658,
+                "auxillary_file_paths": [
+                    "results\\uku06\\Ukulele\\Ukulele-149993.pt"
+                ]
+            },
+            {
+                "steps": 199989,
+                "file_path": "results\\uku06\\Ukulele\\Ukulele-199989.onnx",
+                "reward": 1.6372916034112375,
+                "creation_time": 1785603158.742999,
+                "auxillary_file_paths": [
+                    "results\\uku06\\Ukulele\\Ukulele-199989.pt"
+                ]
+            },
+            {
+                "steps": 249951,
+                "file_path": "results\\uku06\\Ukulele\\Ukulele-249951.onnx",
+                "reward": 1.732925348762256,
+                "creation_time": 1785604639.3458495,
+                "auxillary_file_paths": [
+                    "results\\uku06\\Ukulele\\Ukulele-249951.pt"
+                ]
+            },
+            {
+                "steps": 299975,
+                "file_path": "results\\uku06\\Ukulele\\Ukulele-299975.onnx",
+                "reward": 1.988779170172555,
+                "creation_time": 1785605884.0705967,
+                "auxillary_file_paths": [
+                    "results\\uku06\\Ukulele\\Ukulele-299975.pt"
+                ]
+            },
+            {
+                "steps": 300039,
+                "file_path": "results\\uku06\\Ukulele\\Ukulele-300039.onnx",
+                "reward": 1.988779170172555,
+                "creation_time": 1785605885.5471714,
+                "auxillary_file_paths": [
+                    "results\\uku06\\Ukulele\\Ukulele-300039.pt"
+                ]
+            }
+        ],
+        "final_checkpoint": {
+            "steps": 300039,
+            "file_path": "results\\uku06\\Ukulele.onnx",
+            "reward": 1.988779170172555,
+            "creation_time": 1785605885.5471714,
+            "auxillary_file_paths": [
+                "results\\uku06\\Ukulele\\Ukulele-300039.pt"
+            ]
+        }
+    },
+    "metadata": {
+        "stats_format_version": "0.3.0",
+        "mlagents_version": "1.1.0",
+        "torch_version": "2.13.0+cpu"
+    }
+}
