@@ -1,77 +1,232 @@
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
 public class SoundManager : MonoBehaviour
 {
     public static float GeneralVolume = 0.3f;
+    public static float MusicVolume = 1f;
+    public static float SFXVolume = 1f;
     public static SoundManager instance;
+
+    [SerializeField] private AudioSource musicSource;
+    [SerializeField] private int maxAdios = 128;
+    
+    public static AudioClip CurrentMusic => instance?.musicSource?.clip;
+    public static float MusicTime
+{
+    get => instance?.musicSource?.time ?? 0f;
+    set
+    {
+        AudioSource s = instance?.musicSource;
+
+        if (s == null || s.clip == null)
+            return;
+
+        // 클립 길이를 넘기면 AudioSource.time이 예외를 던진다.
+        s.time = Mathf.Clamp(value, 0f, Mathf.Max(0f, s.clip.length - 0.05f));
+    }
+}
+
+public static void PauseMusic()
+{
+    if (instance?.musicSource != null)
+        instance.musicSource.Pause();
+}
+
+public static void ResumeMusic()
+{
+    if (instance?.musicSource?.clip == null)
+        return;
+
+    instance.musicSource.UnPause();
+}
+    public static bool IsMusicPlaying => instance?.musicSource?.isPlaying ?? false;
+
+    public static void GetMusicSpectrum(float[] data)
+    {
+        if (instance?.musicSource != null && data != null)
+            instance.musicSource.GetSpectrumData(data, 0, FFTWindow.BlackmanHarris);
+    }
+
+    private Coroutine musicRoutine;
+    private float musicBaseVolume = 1f;
+    private float musicFade = 1f;
 
     public class PooledAudio
     {
         public AudioSource source;
-        public float startTime;
-        public float duration; // 재생 시간을 체크하기 위해 추가
-        
+        public float startTime, duration, baseVolume = 1f;
+
         public PooledAudio(AudioSource source, float startTime)
         {
             this.source = source;
             this.startTime = startTime;
-            this.duration = 0f;
         }
     }
-    
-    public static List<PooledAudio> adiosPool = new();
-    public int maxAdios = 128;
+
+    public static readonly List<PooledAudio> adiosPool = new();
 
     void Awake()
     {
         instance = this;
-        PreWarmPool(10); 
+        PreWarmPool(10);
+        RefreshVolumes();
     }
 
-    // 코루틴 대신 매 프레임 끝난 오디오의 클립을 null로 밀어주는 고속 스캔 루틴
     void Update()
     {
-        int count = adiosPool.Count;
-        for (int i = 0; i < count; i++)
-        {
-            var p = adiosPool[i];
-            // 재생 시간이 만료되었고, 현재 실제로 플레이 중이 아니라면 채널 반환
-            if (p.source != null && p.source.clip != null)
-            {
-                if (Time.time >= p.startTime + p.duration && !p.source.isPlaying)
-                {
-                    p.source.clip = null; // 오디오 채널 완전 회수
-                }
-            }
-        }
+        foreach (var p in adiosPool)
+            if (p.source != null && p.source.clip != null &&
+                Time.time >= p.startTime + p.duration && !p.source.isPlaying)
+                p.source.clip = null;
     }
 
-    private void PreWarmPool(int count)
+    public static void SetGeneralVolume(float v) { GeneralVolume = Mathf.Clamp01(v); RefreshVolumes(); }
+    public static void SetMusicVolume(float v) { MusicVolume = Mathf.Clamp01(v); RefreshVolumes(); }
+    public static void SetSFXVolume(float v) { SFXVolume = Mathf.Clamp01(v); RefreshVolumes(); }
+
+    public static void SetMusicSource(AudioSource source)
+    {
+        if (instance == null) return;
+        instance.musicSource = source;
+        RefreshVolumes();
+    }
+
+    static void RefreshVolumes()
+    {
+        if (instance == null) return;
+
+        if (instance.musicSource != null)
+            instance.musicSource.volume =
+                instance.musicBaseVolume * instance.musicFade * GeneralVolume * MusicVolume;
+
+        foreach (var p in adiosPool)
+            if (p.source != null)
+                p.source.volume = p.baseVolume * GeneralVolume * SFXVolume;
+    }
+
+    // ───────────── BGM ─────────────
+
+    public static void PlayMusic(string name, float volume = 1f, float fade = 0.5f, bool loop = true)
+    {
+        var clip = Resources.Load<AudioClip>($"Audio/{name}");
+
+        if (clip == null)
+        {
+            Debug.LogWarning($"BGM {name} not found in Resources/Audio");
+            return;
+        }
+
+        PlayMusic(clip, volume, fade, loop);
+    }
+
+    public static void PlayMusic(AudioClip clip, float volume = 1f, float fade = 0.5f, bool loop = true)
+    {
+        if (instance == null || clip == null || TrainingMode.Enabled) return;
+
+        if (instance.musicSource?.clip == clip && instance.musicSource.isPlaying)
+            return;
+
+        instance.StartMusicRoutine(clip, volume, fade, loop);
+    }
+
+    public static void StopMusic(float fade = 0.5f)
+    {
+        if (instance?.musicSource == null) return;
+        instance.StartMusicRoutine(null, 1f, fade, false);
+    }
+
+    void StartMusicRoutine(AudioClip next, float volume, float fade, bool loop)
+    {
+        if (musicSource == null) return;
+
+        if (musicRoutine != null)
+            StopCoroutine(musicRoutine);
+
+        musicRoutine = StartCoroutine(ChangeMusic(next, Mathf.Clamp01(volume), fade, loop));
+    }
+
+    IEnumerator ChangeMusic(AudioClip next, float volume, float fade, bool loop)
+    {
+        if (musicSource.isPlaying)
+            yield return FadeMusic(0f, fade);
+
+        musicSource.Stop();
+        musicSource.clip = next;
+
+        if (next != null)
+        {
+            musicSource.loop = loop;
+            musicBaseVolume = volume;
+            musicSource.Play();
+            yield return FadeMusic(1f, fade);
+        }
+
+        musicRoutine = null;
+    }
+
+    IEnumerator FadeMusic(float target, float duration)
+    {
+        float from = musicFade;
+
+        if (duration <= 0f)
+        {
+            musicFade = target;
+            RefreshVolumes();
+            yield break;
+        }
+
+        for (float t = 0f; t < duration; t += Time.unscaledDeltaTime)
+        {
+            musicFade = Mathf.Lerp(from, target, t / duration);
+            RefreshVolumes();
+            yield return null;
+        }
+
+        musicFade = target;
+        RefreshVolumes();
+    }
+
+    // ───────────── SFX ─────────────
+
+    void PreWarmPool(int count)
     {
         for (int i = 0; i < count; i++)
-        {
             CreateNewAudioSource();
-        }
     }
 
-    private PooledAudio CreateNewAudioSource()
+    PooledAudio CreateNewAudioSource()
     {
         if (adiosPool.Count >= maxAdios) return null;
 
         var obj = new GameObject($"Audio Pooling {adiosPool.Count}", typeof(AudioSource));
         obj.transform.SetParent(transform);
-        
-        var aud = obj.GetComponent<AudioSource>();
-        aud.playOnAwake = false;
-        
-        var c = new PooledAudio(aud, Time.time);
-        
-        adiosPool.Add(c);
-        return c;
+
+        var source = obj.GetComponent<AudioSource>();
+        source.playOnAwake = false;
+
+        var pooled = new PooledAudio(source, Time.time);
+        adiosPool.Add(pooled);
+
+        return pooled;
     }
 
-    // 기존 풀링 안 쓰는 원샷 메서드 (호환성 유지용)
+    public static void AudioShot(Vector3 pos, string name, float volume = 1f)
+    {
+        if (TrainingMode.Enabled) return;
+
+        var clip = Resources.Load<AudioClip>($"Audio/{name}");
+
+        if (clip == null)
+        {
+            Debug.LogWarning($"AudioClip {name} not found in Resources/Audio");
+            return;
+        }
+
+        AudioShot(pos, clip, volume);
+    }
+
     public static void AudioShot(Vector3 pos, AudioClip clip, float volume = 1f)
     {
         if (TrainingMode.Enabled || clip == null || instance == null) return;
@@ -79,79 +234,41 @@ public class SoundManager : MonoBehaviour
         var obj = new GameObject($"Audio: {clip.name}", typeof(AudioSource));
         obj.transform.position = pos;
 
-        var aud = obj.GetComponent<AudioSource>();
-        aud.volume = volume * GeneralVolume;
-        aud.playOnAwake = false;
-        aud.PlayOneShot(clip);
-        Destroy(obj, clip.length); // 기존 코드 누락 보완
+        var source = obj.GetComponent<AudioSource>();
+        source.volume = volume * GeneralVolume * SFXVolume;
+        source.PlayOneShot(clip);
+
+        Destroy(obj, clip.length);
     }
 
-    public static void AudioShot(Vector3 pos, string AudioName, float volume = 1f)
-    {
-        if (TrainingMode.Enabled) return;
-
-        var clip = Resources.Load<AudioClip>($"Audio/{AudioName}");
-        if (clip == null)
-        {
-            Debug.LogWarning($"AudioClip {AudioName} not found in Resources/Audio");
-            return;
-        }
-        AudioShot(pos, clip, volume);
-    }
-
-    // 가비지가 아예 없는 완성형 풀링 메서드
-    public static void UseAdios(Vector3 position, AudioClip clip, float volume = 1f)
+    public static void UseAdios(Vector3 pos, AudioClip clip, float volume = 1f)
     {
         if (TrainingMode.Enabled || clip == null || instance == null) return;
 
-        PooledAudio availableAud = null;
-        int poolCount = adiosPool.Count;
+        PooledAudio p = adiosPool.Find(x => x.source != null && !x.source.isPlaying);
 
-        // 1. LINQ 대신 고속 for문으로 대기 중인 오디오 탐색 (가비지 0%)
-        for (int i = 0; i < poolCount; i++)
+        if (p == null)
+            p = instance.CreateNewAudioSource();
+
+        if (p == null && adiosPool.Count > 0)
         {
-            if (adiosPool[i].source != null && !adiosPool[i].source.isPlaying)
-            {
-                availableAud = adiosPool[i];
-                break;
-            }
+            p = adiosPool[0];
+
+            foreach (var x in adiosPool)
+                if (x.source != null && x.startTime < p.startTime)
+                    p = x;
+
+            p.source.Stop();
         }
 
-        // 2. 대기 소스가 없다면 풀 최대치 안에서 새로 생성
-        if (availableAud == null)
-        {
-            availableAud = instance.CreateNewAudioSource();
-        }
+        if (p?.source == null) return;
 
-        // 3. 풀이 완전히 가득 찼다면 (Sound Stealing)
-        // 가장 오래전에 시작된 오디오 소스를 최적화 알고리즘으로 골라내서 뺏어옵니다.
-        if (availableAud == null && poolCount > 0)
-        {
-            float oldestTime = float.MaxValue;
-            int oldestIndex = 0;
-
-            for (int i = 0; i < poolCount; i++)
-            {
-                if (adiosPool[i].source != null && adiosPool[i].startTime < oldestTime)
-                {
-                    oldestTime = adiosPool[i].startTime;
-                    oldestIndex = i;
-                }
-            }
-
-            availableAud = adiosPool[oldestIndex];
-            availableAud.source.Stop(); // 점유 중인 채널 하드웨어 강제 회수
-        }
-
-        // 안전 장치    
-        if (availableAud == null || availableAud.source == null) return;
-
-        // 4. 컴포넌트 재설정 및 재생
-        availableAud.source.gameObject.transform.position = position;
-        availableAud.source.clip = clip;
-        availableAud.source.volume = volume * GeneralVolume;
-        availableAud.startTime = Time.time; 
-        availableAud.duration = clip.length; // 길이 저장하여 Update에서 추적
-        availableAud.source.Play();
+        p.source.transform.position = pos;
+        p.source.clip = clip;
+        p.baseVolume = volume;
+        p.source.volume = volume * GeneralVolume * SFXVolume;
+        p.startTime = Time.time;
+        p.duration = clip.length;
+        p.source.Play();
     }
 }

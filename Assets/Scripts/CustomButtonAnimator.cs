@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using DG.Tweening;
+using IMGUI;
 using UnityEngine;
 using UnityEngine.EventSystems;
 
@@ -13,20 +14,17 @@ public class TweenNode
     public float duration = 0.2f;
 }
 
-public class CustomButtonAnimator : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler, IPointerDownHandler, IPointerUpHandler, IPointerClickHandler
+public class CustomButtonAnimator : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler, IPointerDownHandler, IPointerUpHandler
 {
     public List<TweenNode> Normal;
     public List<TweenNode> Highlighted;
     public List<TweenNode> Pressed;
-    public List<TweenNode> Selected;
     public List<TweenNode> Disabled;
 
     [Header("Debounce Settings")]
     [SerializeField] private float debounceTime = 0.08f; 
 
-    private bool isHovered = false;
     private bool isPressed = false;
-    private bool isSelected = false;
     
     private bool isExitDebouncing = false; 
     private Tween debounceTimerTween = null;
@@ -38,13 +36,13 @@ public class CustomButtonAnimator : MonoBehaviour, IPointerEnterHandler, IPointe
 
     public void OnPointerEnter(PointerEventData eventData)
     {
-        isHovered = true;
+        if(GUIManager.Blocked) return;
 
         // 디바운스 잠금이 걸려있다면 하이라이트를 무시합니다.
         if (isExitDebouncing) return;
         
-        // 이미 선택된 버튼이거나 클릭 중이라면 하이라이트 연출을 패스합니다.
-        if (isSelected || isPressed) return;
+        // 클릭 중이라면 하이라이트 연출을 패스합니다.
+        if (isPressed) return;
 
         ApplyState(Highlighted);
         SoundManager.AudioShot(transform.position, "Highlighted", 1);
@@ -52,18 +50,16 @@ public class CustomButtonAnimator : MonoBehaviour, IPointerEnterHandler, IPointe
 
     public void OnPointerExit(PointerEventData eventData)
     {
-        isHovered = false;
-
         if (isPressed) return;
 
-        // 이미 선택된 버튼이라면 나갈 때 Selected 상태를 유지, 아니라면 Normal로 복구
-        ApplyState(isSelected ? Selected : Normal);
+        ApplyState(Normal);
 
         StartExitDebounce();
     }
 
     public void OnPointerDown(PointerEventData eventData)
     {
+        if(GUIManager.Blocked) return;
         // 누르는 순간 혹시 돌고 있을지 모르는 디바운스 타이머를 즉시 파괴합니다.
         KillDebounceTimer();
 
@@ -74,53 +70,43 @@ public class CustomButtonAnimator : MonoBehaviour, IPointerEnterHandler, IPointe
 
     public void OnPointerUp(PointerEventData eventData)
     {
+        if(GUIManager.Blocked) return;
         isPressed = false;
 
-        bool isRealHovered = eventData.pointerCurrentRaycast.gameObject == this.gameObject || 
-                             (eventData.pointerCurrentRaycast.gameObject != null && 
-                              eventData.pointerCurrentRaycast.gameObject.transform.IsChildOf(this.transform));
+        GameObject hit = eventData.pointerCurrentRaycast.gameObject;
+        bool isRealHovered = hit == this.gameObject || (hit != null && hit.transform.IsChildOf(this.transform));
 
         // 클릭 후 손을 뗐을 때 여전히 버튼 위라면
-        if (isRealHovered && isHovered)
+        if (isRealHovered)
         {
-            // 만약 클릭으로 인해 Selected가 되었다면 Highlighted 대신 Selected 연출을 지켜줘야 합니다.
-            if (isSelected)
-            {
-                ApplyState(Selected);
-            }
-            else if (!isExitDebouncing)
+            if (!isExitDebouncing)
             {
                 ApplyState(Highlighted);
             }
         }
         else
         {
-            isHovered = false;
-            ApplyState(isSelected ? Selected : Normal);
+            ApplyState(Normal);
             StartExitDebounce();
         }
     }
 
-    public void OnPointerClick(PointerEventData eventData)
-    {
-        // 클릭이 정상 성사되었으므로 남아있는 디바운스 잠금을 완전히 풀어서 다음 진입을 준비합니다.
-        KillDebounceTimer();
-
-        if (isSelected) return;
-
-        isSelected = true;
-        ApplyState(Selected);
-        SoundManager.AudioShot(transform.position, "Selected", 1);
-    }
-
     private void StartExitDebounce()
     {
+        
         KillDebounceTimer();
         isExitDebouncing = true;
 
         debounceTimerTween = DOVirtual.DelayedCall(debounceTime, () =>
         {
-            isExitDebouncing = false; 
+            isExitDebouncing = false;
+
+            // 디바운스가 풀리는 시점에도 여전히 버튼 위에 마우스가 있다면 하이라이트를 복구합니다.
+            // (디바운스 중 진입은 무시되므로 이 재적용이 없으면 버튼이 Normal에 갇힙니다)
+            if (!isPressed && IsPointerOverButton())
+            {
+                ApplyState(Highlighted);
+            }
         }, false).SetLink(gameObject);
     }
 
@@ -134,17 +120,12 @@ public class CustomButtonAnimator : MonoBehaviour, IPointerEnterHandler, IPointe
         isExitDebouncing = false; // [핵심 수정] 락 플래그를 확실하게 초기화합니다.
     }
 
-    // 토글 메뉴나 라디오 버튼처럼 외부 매니저가 이 버튼의 선택을 해제할 때 호출되는 메서드
+    // 토글 메뉴나 라디오 버튼처럼 외부 매니저가 선택을 해제할 때 호출되는 메서드 (Selected 제거로 더 이상 상태 없음)
     public void DeselectButton()
     {
-        // 선택 해제 시에도 안전하게 디바운스를 리셋합니다.
         KillDebounceTimer();
 
-        if (!isSelected) return;
-        isSelected = false;
-        
-        // 선택이 풀렸을 때 마우스가 위에 있다면 하이라이트로, 없다면 노멀로 복귀
-        ApplyState(isHovered ? Highlighted : Normal);
+        ApplyState(IsPointerOverButton() ? Highlighted : Normal);
     }
 
     public void SetDisabled(bool isDisabled)
@@ -153,11 +134,24 @@ public class CustomButtonAnimator : MonoBehaviour, IPointerEnterHandler, IPointe
         if (isDisabled)
         {
             KillDebounceTimer();
-            isHovered = false;
             isPressed = false;
-            isSelected = false;
         }
         ApplyState(isDisabled ? Disabled : Normal);
+    }
+
+    // 이벤트 시스템의 enter/exit 추적과 무관하게, 실제 마우스 위치로 버튼 위인지 판단합니다.
+    // 자식 객체가 레이캐스트를 가로채도(부모가 Exit을 받아도) 올바른 hover 상태를 얻습니다.
+    private bool IsPointerOverButton()
+    {
+        RectTransform rect = transform as RectTransform;
+        if (rect == null) return false;
+
+        Canvas canvas = GetComponentInParent<Canvas>();
+        Camera cam = canvas != null && canvas.rootCanvas.renderMode == RenderMode.ScreenSpaceOverlay
+            ? null
+            : canvas.rootCanvas.worldCamera;
+
+        return RectTransformUtility.RectangleContainsScreenPoint(rect, Input.mousePosition, cam);
     }
 
     private void ApplyState(List<TweenNode> stateNodes)

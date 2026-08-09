@@ -10,7 +10,7 @@ public enum EventType
     good,
     bad,
     super_good,
-    super_bad
+    super_bad,
 }
 
 [Serializable]
