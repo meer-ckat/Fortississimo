@@ -75,6 +75,7 @@ public class CardCanvas : MonoBehaviour
 
         Transform titleObj = cardObj.transform.Find("Title");
         Transform descObj = cardObj.transform.Find("Desc");
+        cardObj.GetComponent<Image>().sprite = card.Image?? default;
 
         currentPlayerCards.Add(new CardUI(card, cardObj)); //Dictionary에 저장
 
@@ -478,6 +479,7 @@ public class CardCanvas : MonoBehaviour
         {
             desc.text = card.Desc;
         }
+        cardObj.GetComponent<Image>().sprite = card.Image?? default;
         return cardObj;
     }
 
