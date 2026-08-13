@@ -278,9 +278,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::MusicManager
   showTime: 5
   fade: 0.5
-  width: 520
-  height: 120
+  size: {x: 430, y: 116}
+  miniSize: {x: 210, y: 34}
   barCount: 24
+  margin: 12
+  seekStep: 5
+  toggleKey: 27
+  spectrumGain: 140
 --- !u!1 &158462826
 GameObject:
   m_ObjectHideFlags: 0
@@ -1398,8 +1402,6 @@ GameObject:
   - component: {fileID: 1002480223}
   - component: {fileID: 1002480222}
   - component: {fileID: 1002480221}
-  - component: {fileID: 1002480220}
-  - component: {fileID: 1002480219}
   m_Layer: 5
   m_Name: BlockerCanvas
   m_TagString: Untagged
@@ -1427,45 +1429,6 @@ RectTransform:
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0, y: 0}
---- !u!114 &1002480219
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1002480217}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 1eaa6673e5309504f963c54ffd27a3cd, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: '::'
-  CardPrefab: {fileID: 4099262970976103220, guid: b0497faa4cb08954cb7cb21da4c1760e, type: 3}
-  cardSpacing: 150
-  cardY: -380
-  cardSpawnY: -700
-  cardExitX: 1000
-  cardExitY: -500
-  dragDetectionDistance: 200
-  dragSmoothSpeed: 15
-  chosenCardArea: {fileID: 0}
-  battlePlace: {fileID: 0}
-  battleCardOffset: 260
-  enemySpawnOffset: 900
-  battleEnterDuration: 0.35
-  battleAttackDuration: 0.12
-  battleRecoilDuration: 0.16
---- !u!114 &1002480220
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1002480217}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: fa79246793a72054dbe127e833d2dff0, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::CardDragManager
 --- !u!114 &1002480221
 MonoBehaviour:
   m_ObjectHideFlags: 0

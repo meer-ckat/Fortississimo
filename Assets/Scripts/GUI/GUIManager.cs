@@ -47,6 +47,7 @@ namespace IMGUI // not I'm GUI.
             if (blocker != null)
             {
                 blockerCanvas = blocker.GetComponent<Canvas>();
+                Blocked = false;
 
                 if (blockerCanvas == null)
                     blockerCanvas = blocker.gameObject.AddComponent<Canvas>();
