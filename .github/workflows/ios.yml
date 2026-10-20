@@ -22,13 +22,18 @@ jobs:
         run: |
           cat xcode/ios.zip.part* > ios.zip
           unzip -q ios.zip -d ios
+          # Windows 압축에는 실행 권한이 없다. IL2CPP 도구와 빌드 단계 스크립트가 Permission denied로 막힌다
+          chmod -R +x ios/Il2CppOutputProject/IL2CPP
+          chmod +x ios/*.sh ios/usymtool ios/usymtoolarm64
 
       - name: Build unsigned app
         run: |
+          set -o pipefail
+          # 실패하면 error: 줄을 주석으로 띄운다. 로그는 로그인해야 보이지만 주석은 공개로 보인다
           xcodebuild -project ios/Unity-iPhone.xcodeproj -scheme Unity-iPhone \
             -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' \
             -derivedDataPath dd CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
-            build
+            build 2>&1 | tee build.log || { grep -E "error:|Permission denied|failed with exit code" build.log | sort -u | head -30 | while read -r l; do echo "::error::$l"; done; exit 1; }
           mkdir Payload
           cp -R dd/Build/Products/Release-iphoneos/*.app Payload/
           zip -qry Fortississimo.ipa Payload
