@@ -1,0 +1,41 @@
+# 아이폰 테스트 빌드. Windows에서는 Xcode 프로젝트까지만 나오므로 컴파일만 여기(macOS)서 한다.
+# Unity는 안 돌린다 - CI에 Unity 라이선스를 넣지 않으려고 내보낸 Xcode 프로젝트(xcode/ios.zip.part*)를 받는다.
+# 결과는 서명 없는 .ipa. 아이폰에는 Windows의 Sideloadly가 무료 Apple ID로 서명해 설치한다(7일 유효).
+name: iOS test build
+
+on:
+  push:
+    branches: [ios-build]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      # GitHub는 파일 하나에 100MB까지라 압축본을 쪼개 올렸다
+      - name: Unpack Xcode project
+        run: |
+          cat xcode/ios.zip.part* > ios.zip
+          unzip -q ios.zip -d ios
+
+      - name: Build unsigned app
+        run: |
+          xcodebuild -project ios/Unity-iPhone.xcodeproj -scheme Unity-iPhone \
+            -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' \
+            -derivedDataPath dd CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            build
+          mkdir Payload
+          cp -R dd/Build/Products/Release-iphoneos/*.app Payload/
+          zip -qry Fortississimo.ipa Payload
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ios-test-${{ github.run_number }}
+          name: iOS test build ${{ github.run_number }}
+          prerelease: true
+          files: Fortississimo.ipa
